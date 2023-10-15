@@ -83,3 +83,8 @@ func (c *Cache) Add(key string, value Value) {
 func (c *Cache) Len() int {
 	return c.ll.Len()
 }
+
+// TODO
+// [LRU] what if a single element's size exceeded the max bytes of LRU? #1
+// 具体到我写的这段LRU缓存结构体上，过大的元素会实际地插入双线链表，最后又因maxBytes的检查而弹出该元素，这导致链表插入的时间和为链表节点分配的内存空间被浪费。
+// 如果为entry.Value的值添加限制，并在修改缓存中已有键值对或者新增键值对前进行检查，因该情形产生的资源浪费应该能够被避免。
