@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const defaultBasePath = "/_geecache" //节点通信地址前缀
+const defaultBasePath = "/_geecache/" //节点通信地址前缀
 
 // HTTPPool 为 HTTP 对等体池实现了 PeerPicker。暂时没懂啥意思，看后续怎么用
 type HTTPPool struct {
