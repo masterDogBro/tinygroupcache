@@ -24,7 +24,7 @@ func TestHashing(t *testing.T) {
 
 	for k, v := range testCases {
 		if hash.Get(k) != v {
-			t.Errorf("Asking for %s, should have yielded %s", k, v)
+			t.Errorf("Asking for %s, should have yielded %s But get %s", k, v, hash.Get(k))
 		}
 	}
 
@@ -36,8 +36,19 @@ func TestHashing(t *testing.T) {
 
 	for k, v := range testCases {
 		if hash.Get(k) != v {
-			t.Errorf("Asking for %s, should have yielded %s", k, v)
+			t.Errorf("Asking for %s, should have yielded %s But get %s", k, v, hash.Get(k))
 		}
 	}
 
+	// Del 8, 18, 28
+	hash.Del("8")
+
+	// 27 should now map to 2.
+	testCases["27"] = "2"
+
+	for k, v := range testCases {
+		if hash.Get(k) != v {
+			t.Errorf("Asking for %s, should have yielded %s But get %s", k, v, hash.Get(k))
+		}
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"hash/crc32"
 	"sort"
 	"strconv"
+	"sync"
 )
 
 // Hash 定义Hash函数类型
@@ -11,10 +12,11 @@ type Hash func(data []byte) uint32
 
 // Map 一致性哈希算法的主数据结构
 type Map struct {
-	hash         Hash  // 一致性哈希所用哈希函数，默认使用crc32.ChecksumIEEE
-	copyMultiple int   // 虚拟节点倍数即一个真实缓存节点对应多少虚拟几点
-	keys         []int // 哈希环，有序的（从大到小），保存虚拟节点的哈希值
-	// Map.Get中查找依赖有序实现。
+	mu           sync.Mutex // 确保缓存节点添加、删除可并行
+	hash         Hash       // 一致性哈希所用哈希函数，默认使用crc32.ChecksumIEEE
+	copyMultiple int        // 虚拟节点倍数即一个真实缓存节点对应多少虚拟几点
+	keys         []int      // 哈希环，有序的（从大到小），保存虚拟节点的哈希值
+	// Map.Get中二分查找依赖有序实现。
 	hashMap map[int]string // 字典，存储真实节点与虚拟节点的映射关系
 }
 
@@ -32,6 +34,9 @@ func NewMap(copyMultiple int, hf Hash) *Map {
 
 // Add 添加缓存节点
 func (m *Map) Add(keys ...string) {
+	m.mu.Lock()
+	// TODO 以锁的形式完全限制m.keys，m.hashMap可能会严重影响性能，后续可以研究其他一致性哈希算法实现
+	defer m.mu.Unlock()
 	for _, key := range keys {
 		// key是真实缓存节点名称
 		for i := 0; i < m.copyMultiple; i++ {
@@ -41,6 +46,28 @@ func (m *Map) Add(keys ...string) {
 		}
 	}
 	sort.Ints(m.keys)
+}
+
+// Del 删除名称对应缓存节点/虚拟节点
+func (m *Map) Del(key string) {
+	m.mu.Lock()
+	// TODO 以锁的形式完全限制m.keys，m.hashMap可能会严重影响性能，后续可以研究其他一致性哈希算法实现
+	defer m.mu.Unlock()
+	for i := 0; i < m.copyMultiple; i++ {
+		hashValue := int(m.hash([]byte(strconv.Itoa(i) + key)))
+		idx := sort.SearchInts(m.keys, hashValue)
+		if idx == len(m.keys) {
+			// 找不到对应缓存节点，直接返回
+			return
+		}
+		// 被gpt骗了
+		//if idx < len(m.keys)-1 {
+		//	m.keys = append(m.keys[:idx], m.keys[idx+1:]...)
+		//} else {
+		//	m.keys = m.keys[:idx]
+		//}
+		m.keys = append(m.keys[:idx], m.keys[idx+1:]...)
+	}
 }
 
 // Get 根据key值选出需要访问的缓存节点
@@ -56,5 +83,4 @@ func (m *Map) Get(key string) string {
 		return m.keys[i] >= hashValue
 	})
 	return m.hashMap[m.keys[idx%len(m.keys)]]
-
 }
