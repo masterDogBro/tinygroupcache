@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"tinygroupcache/singelefight"
 )
 
 // Getter Getter接口，含义一个方法：回调函数Get
@@ -32,10 +33,11 @@ func (f GetterFunc) Get(key string) ([]byte, error) {
 
 // Group 某一个缓存的命名空间
 type Group struct {
-	name      string     // 唯一名称
-	getter    Getter     // 缓存未命中时调用的回调接口
-	mainCache cache      // 并发缓存
-	peers     PeerPicker // 负责选取应该访问的其他对等缓存节点的PeerPicker
+	name      string                // 唯一名称
+	getter    Getter                // 缓存未命中时调用的回调接口
+	mainCache cache                 // 并发缓存
+	peers     PeerPicker            // 负责选取应该访问的其他对等缓存节点的PeerPicker
+	loader    *singelefight.CallMap // 使用CallMap来确保对同一缓存空间同一key的缓存请求同时只能有一个
 }
 
 var (
@@ -54,6 +56,7 @@ func NewGroup(name string, cacheBytes int64, getter Getter) *Group {
 		name:      name,
 		getter:    getter,
 		mainCache: cache{cacheBytes: cacheBytes},
+		loader:    &singelefight.CallMap{},
 	}
 	groups[name] = g
 	return g
@@ -94,18 +97,38 @@ func (g *Group) Get(key string) (ByteView, error) {
 // load 当所需缓存值根据一致性哈希在本节点上时，则从本节点数据源获，并加入本节点的该缓存空间(Group.name)；
 // 当在其他对等节点上时，则从对等节点获取但并不加入本节点缓存空间
 // TODO 这种缓存加载的形式是否合理，或者说一致性哈希是否该允许缓存迁移？
-func (g *Group) load(key string) (value ByteView, err error) { // 直接引入返回值的变量名
-	if g.peers != nil {
-		if peer, ok := g.peers.PickPeer(key); ok {
-			if value, err = g.getFromPeer(peer, key); err == nil {
-				return value, nil
+// 使用CallMap来解决缓存击穿时可能出现对同一key的大量重复请求，无论是本机请求还是其他对等节点请求
+func (g *Group) load(key string) (value ByteView, err error) { //返回值提前声明变量名
+	callValue, errD := g.loader.Do(key, func() (interface{}, error) {
+		if g.peers != nil {
+			if peer, ok := g.peers.PickPeer(key); ok {
+				if value, err = g.getFromPeer(peer, key); err == nil {
+					return value, nil
+				}
+				log.Println("Failed to get from peer", err)
 			}
-			log.Println("Failed to get from peer", err)
 		}
+		// 如果一致性哈希选择的是本机或者从对等节点获取失败（缓存穿透）
+		// 单机情况，只需要从本节点数据源获取
+		return g.getLocally(key)
+	})
+
+	//if g.peers != nil {
+	//	if peer, ok := g.peers.PickPeer(key); ok {
+	//		if value, err = g.getFromPeer(peer, key); err == nil {
+	//			return value, nil
+	//		}
+	//		log.Println("Failed to get from peer", err)
+	//	}
+	//}
+	//// 如果一致性哈希选择的是本机或者从对等节点获取失败（缓存穿透）
+	//// 单机情况，只需要从本节点数据源获取
+	//return g.getLocally(key)
+
+	if errD == nil {
+		return callValue.(ByteView), nil
 	}
-	// 如果一致性哈希选择的是本机或者从对等节点获取失败（缓存穿透）
-	// 单机情况，只需要从本节点数据源获取
-	return g.getLocally(key)
+	return ByteView{}, errD
 }
 
 // getFromPeer 从某个对等缓存节点中获取当前缓存空间(Group.name)中key对应的缓存值
