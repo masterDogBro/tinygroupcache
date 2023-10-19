@@ -2,12 +2,14 @@ package tinygroupcache
 
 import (
 	"fmt"
+	"google.golang.org/protobuf/proto"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
+	pb "tinygroupcache/cachepb"
 	"tinygroupcache/consistenthash"
 )
 
@@ -88,8 +90,23 @@ func (hp *HTTPPool) ServeHTTP(writer http.ResponseWriter, r *http.Request) {
 	}
 
 	// 未发生任何错误，返回缓存值
+
+	// http通信实现形式
+	//writer.Header().Set("Content-Type", "application/octet-stream")
+	//_, errW := writer.Write(view.ByteSlice())
+	//if errW != nil {
+	//	hp.Log("%s", errW)
+	//}
+
+	// protobuf通信实现形式
+	// 编码HTTP响应
+	body, errM := proto.Marshal(&pb.Response{Value: view.ByteSlice()})
+	if errM != nil {
+		http.Error(writer, errM.Error(), http.StatusInternalServerError)
+		return
+	}
 	writer.Header().Set("Content-Type", "application/octet-stream")
-	_, errW := writer.Write(view.ByteSlice())
+	_, errW := writer.Write(body)
 	if errW != nil {
 		hp.Log("%s", errW)
 	}
@@ -99,16 +116,16 @@ type httpGetter struct {
 	baseURL string
 }
 
-func (h *httpGetter) Get(group string, key string) ([]byte, error) {
+func (h *httpGetter) Get(in *pb.Request, out *pb.Response) error {
 	getUrl := fmt.Sprintf(
 		"%v%v/%v",
 		h.baseURL,
-		url.QueryEscape(group),
-		url.QueryEscape(key),
+		url.QueryEscape(in.GetGroup()),
+		url.QueryEscape(in.GetKey()),
 	)
 	res, errG := http.Get(getUrl)
 	if errG != nil {
-		return nil, errG
+		return errG
 	}
 
 	// GoLand提示我“未封装错误”，小改一下
@@ -121,16 +138,21 @@ func (h *httpGetter) Get(group string, key string) ([]byte, error) {
 
 	// 处理服务器返回错误
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("server returned: %v", res.Status)
+		return fmt.Errorf("server returned: %v", res.Status)
 	}
 
 	// 处理Response读取错误
 	bytes, errR := io.ReadAll(res.Body)
 	if errR != nil {
-		return nil, fmt.Errorf("reading response body: %v", errR)
+		return fmt.Errorf("reading response body: %v", errR)
 	}
 
-	return bytes, nil
+	// bytes解码出错
+	if errUm := proto.Unmarshal(bytes, out); errUm != nil {
+		return fmt.Errorf("decoding response body: %v", errUm)
+	}
+
+	return nil
 }
 
 // 接口断言，用于检查 httpGetter 类型是否实现了 PeerGetter 接口。

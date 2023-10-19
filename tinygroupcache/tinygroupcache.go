@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	pb "tinygroupcache/cachepb"
 	"tinygroupcache/singelefight"
 )
 
@@ -133,11 +134,24 @@ func (g *Group) load(key string) (value ByteView, err error) { //返回值提前
 
 // getFromPeer 从某个对等缓存节点中获取当前缓存空间(Group.name)中key对应的缓存值
 func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
-	bytes, err := peer.Get(g.name, key)
+	// Get(in *pb.Request, out *pb.Response) error 形式实现
+	req := &pb.Request{
+		Group: g.name,
+		Key:   key,
+	}
+	res := &pb.Response{}
+	err := peer.Get(req, res)
 	if err != nil {
 		return ByteView{}, err
 	}
-	return ByteView{b: bytes}, nil
+	return ByteView{b: res.Value}, nil
+
+	// Get(group string, key string) ([]byte, error) 形式实现
+	// bytes, err := peer.Get(g.name, key)
+	//if err != nil {
+	//	return ByteView{}, err
+	//}
+	//return ByteView{b: bytes}, nil
 }
 
 func (g *Group) getLocally(key string) (ByteView, error) {
