@@ -1,4 +1,4 @@
-# 分布式缓存 GeeCache
+# 分布式缓存 TinyGroupCache
 
 ## 使用分布式缓存系统的目的：
 
@@ -19,7 +19,7 @@
 
 ​		[分布式缓存面临的常见问题及其解决方案_分布式缓存解决方案-CSDN博客](https://blog.csdn.net/c15158032319/article/details/117848048)
 
-## GeeCache原型：
+## TinyGroupCache原型：
 
 ​	 **groupcache**（对其功能进行了裁剪）
 

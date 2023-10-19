@@ -1,4 +1,4 @@
-package geecache
+package tinygroupcache
 
 // ByteView 缓存值结构体，只读
 type ByteView struct {
