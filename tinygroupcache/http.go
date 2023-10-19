@@ -1,17 +1,17 @@
-package geecache
+package tinygroupcache
 
 import (
 	"fmt"
-	"geecache/consistenthash"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
+	"tinygroupcache/consistenthash"
 )
 
-const defaultBasePath = "/_geecache/" //节点通信地址前缀
+const defaultBasePath = "/_tgcache/" //节点通信地址前缀
 const defaultCopyMultiple = 3
 
 // HTTPPool 为 HTTP 对等体池实现了 PeerPicker。

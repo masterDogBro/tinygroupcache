@@ -3,9 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"geecache"
 	"log"
 	"net/http"
+	"tinygroupcache"
 )
 
 var db = map[string]string{
@@ -31,8 +31,8 @@ var db = map[string]string{
 //}
 
 // 在当前节点创建缓存空间scores
-func createGroup() *geecache.Group {
-	return geecache.NewGroup("scores", 2<<10, geecache.GetterFunc(
+func createGroup() *tinygroupcache.Group {
+	return tinygroupcache.NewGroup("scores", 2<<10, tinygroupcache.GetterFunc(
 		func(key string) ([]byte, error) {
 			log.Println("[SlowDB] search key", key)
 			if v, ok := db[key]; ok {
@@ -43,26 +43,29 @@ func createGroup() *geecache.Group {
 }
 
 // startCacheServer 用来启动缓存服务器：创建 HTTPPool，添加节点信息，注册到缓存空间中，启动 HTTP 服务
-func startCacheServer(addr string, addrs []string, gee *geecache.Group) {
-	peers := geecache.NewHTTPPool(addr)
+func startCacheServer(addr string, addrs []string, gee *tinygroupcache.Group) {
+	peers := tinygroupcache.NewHTTPPool(addr)
 	peers.Set(addrs...)
 	gee.RegisterPeers(peers)
-	log.Println("geecache is running at", addr)
+	log.Println("tinygroupcache is running at", addr)
 	log.Fatal(http.ListenAndServe(addr[7:], peers))
 }
 
 // startAPIServer 用来启动一个 API 服务，与用户进行交互
-func startAPIServer(apiAddr string, gee *geecache.Group) {
+func startAPIServer(apiAddr string, gee *tinygroupcache.Group) {
 	http.Handle("/api", http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			key := r.URL.Query().Get("key")
-			view, err := gee.Get(key)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+			view, errG := gee.Get(key)
+			if errG != nil {
+				http.Error(w, errG.Error(), http.StatusInternalServerError)
 				return
 			}
 			w.Header().Set("Content-Type", "application/octet-stream")
-			w.Write(view.ByteSlice())
+			_, errW := w.Write(view.ByteSlice())
+			if errW != nil {
+				return
+			}
 
 		}))
 	log.Println("fontend server is running at", apiAddr)
@@ -73,7 +76,7 @@ func startAPIServer(apiAddr string, gee *geecache.Group) {
 func main() {
 	var port int
 	var api bool
-	flag.IntVar(&port, "port", 8001, "Geecache server port")
+	flag.IntVar(&port, "port", 8001, "tinygroupcache server port")
 	flag.BoolVar(&api, "api", false, "Start a api server?")
 	flag.Parse()
 

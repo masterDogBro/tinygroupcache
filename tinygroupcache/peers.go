@@ -1,4 +1,4 @@
-package geecache
+package tinygroupcache
 
 // PeerPicker PickPeer方法基于key选择对应缓存节点peer，并返回其PeerGetter
 type PeerPicker interface {
