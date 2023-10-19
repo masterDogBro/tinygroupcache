@@ -14,22 +14,6 @@ var db = map[string]string{
 	"Sam":  "567",
 }
 
-//func main() {
-//	geecache.NewGroup("scores", 2<<10, geecache.GetterFunc(
-//		func(key string) ([]byte, error) {
-//			log.Println("[SlowDB] search key", key)
-//			if v, ok := db[key]; ok {
-//				return []byte(v), nil
-//			}
-//			return nil, fmt.Errorf("%s not exist", key)
-//		}))
-//
-//	addr := "localhost:9999"
-//	peers := geecache.NewHTTPPool(addr)
-//	log.Println("geecache is running at", addr)
-//	log.Fatal(http.ListenAndServe(addr, peers))
-//}
-
 // 在当前节点创建缓存空间scores
 func createGroup() *tinygroupcache.Group {
 	return tinygroupcache.NewGroup("scores", 2<<10, tinygroupcache.GetterFunc(
