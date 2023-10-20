@@ -1,8 +1,8 @@
-package geecache
+package tinygroupcache
 
 import (
-	"geecache/lru"
 	"sync"
+	"tinygroupcache/lru"
 )
 
 // cache 将lru.Cache的方法封装为单机可并行的（可对外部开放的主要是Add和Get两个方法）
