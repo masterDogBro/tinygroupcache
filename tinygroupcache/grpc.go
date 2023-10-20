@@ -12,23 +12,7 @@ import (
 	"tinygroupcache/consistenthash"
 )
 
-type grpcGetter struct {
-	addr string
-}
-
-func (g *grpcGetter) Get(in *pb.Request, out *pb.Response) error {
-	c, err := grpc.Dial(g.addr, grpc.WithInsecure())
-	if err != nil {
-		return err
-	}
-	client := pb.NewGroupCacheClient(c)
-	response, err := client.Get(context.Background(), in)
-	out.Value = response.Value
-	return err
-}
-
-var _ PeerGetter = (*grpcGetter)(nil)
-
+// GrpcPool 向前继承pb.UnimplementedGroupCacheServer，为 RPC 对等体池实现了 PeerPicker。
 type GrpcPool struct {
 	pb.UnimplementedGroupCacheServer
 
@@ -46,6 +30,8 @@ func NewGrpcPool(self string) *GrpcPool {
 	}
 }
 
+// Set 实例化一致性哈希，并将缓存节点地址添加到RPCPool.peers和RPCPool.grpcGetters
+// TODO 这种初始化形式后续没有留有Peers添加或者删除的扩展余地，但在consistenthash中是有相应的方法的
 func (p *GrpcPool) Set(peers ...string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -66,13 +52,14 @@ func (p *GrpcPool) PickPeer(key string) (PeerGetter, bool) {
 	return nil, false
 }
 
-// 接口检测
+// 接口断言
 var _ PeerPicker = (*GrpcPool)(nil)
 
 func (p *GrpcPool) Log(format string, v ...interface{}) {
 	log.Printf("[Server %s] %s", p.self, fmt.Sprintf(format, v...))
 }
 
+// Get 实现GrpcPool的Get方法，类似ServeHTTP的逻辑，但其使用被封装在cachepb_grpc.pb.go里了
 func (p *GrpcPool) Get(ctx context.Context, in *pb.Request) (*pb.Response, error) {
 	p.Log("%s %s", in.Group, in.Key)
 	response := &pb.Response{}
@@ -92,6 +79,7 @@ func (p *GrpcPool) Get(ctx context.Context, in *pb.Request) (*pb.Response, error
 	return response, nil
 }
 
+// Run gRPC服务器启动
 func (p *GrpcPool) Run() {
 	lis, err := net.Listen("tcp", p.self)
 	if err != nil {
@@ -107,3 +95,22 @@ func (p *GrpcPool) Run() {
 		panic(err)
 	}
 }
+
+// grpcGetter 实际上作为gRPC客户端
+type grpcGetter struct {
+	addr string
+}
+
+func (g *grpcGetter) Get(in *pb.Request, out *pb.Response) error {
+	c, err := grpc.Dial(g.addr, grpc.WithInsecure())
+	if err != nil {
+		return err
+	}
+	client := pb.NewGroupCacheClient(c)
+	response, err := client.Get(context.Background(), in)
+	out.Value = response.Value
+	return err
+}
+
+// 接口断言
+var _ PeerGetter = (*grpcGetter)(nil)

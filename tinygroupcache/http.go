@@ -109,6 +109,7 @@ func (hp *HTTPPool) ServeHTTP(writer http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// httpGetter 实际上作为http客户端
 type httpGetter struct {
 	baseURL string
 }
