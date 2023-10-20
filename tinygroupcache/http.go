@@ -13,9 +13,6 @@ import (
 	"tinygroupcache/consistenthash"
 )
 
-const defaultBasePath = "/_tgcache/" //节点通信地址前缀
-const defaultCopyMultiple = 3
-
 // HTTPPool 为 HTTP 对等体池实现了 PeerPicker。
 // 基于一致性hash来实现缓存节点选择
 type HTTPPool struct {
